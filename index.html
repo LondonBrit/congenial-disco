@@ -1,0 +1,880 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Supplier Engagement Game</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    <style>
+        .qr-scanner-container {
+            width: 100%;
+            max-width: 400px;
+            margin: 0 auto;
+        }
+        .pulse-animation {
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <div id="app" class="container mx-auto px-4 py-8">
+        <!-- Login Screen -->
+        <div id="loginScreen" class="max-w-md mx-auto">
+            <div class="bg-white rounded-lg shadow-lg p-8">
+                <div class="text-center mb-8">
+                    <h1 class="text-3xl font-bold text-gray-800 mb-2">Supplier Engagement Game</h1>
+                    <p class="text-gray-600">Scan QR codes to earn points!</p>
+                </div>
+                <div class="mb-6">
+                    <label for="badgeUid" class="block text-sm font-medium text-gray-700 mb-2">Badge UID</label>
+                    <input type="text" id="badgeUid" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="Enter your Badge UID">
+                </div>
+                <button id="loginBtn" class="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors">Login</button>
+                <div id="loginError" class="mt-4 text-red-600 text-sm hidden"></div>
+                <div class="mt-6 text-center">
+                    <a href="#admin" class="text-blue-600 hover:text-blue-800 text-sm">Admin Access</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Dashboard -->
+        <div id="dashboard" class="hidden">
+            <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
+                <div class="flex justify-between items-center mb-4">
+                    <div>
+                        <h2 class="text-xl font-semibold text-gray-800">Welcome, <span id="userName"></span>!</h2>
+                        <p class="text-gray-600">Current Score: <span id="userScore" class="font-bold text-blue-600">0</span> points</p>
+                    </div>
+                    <button id="logoutBtn" class="text-gray-500 hover:text-gray-700">Logout</button>
+                </div>
+                <button id="scanBtn" class="w-full bg-green-600 text-white py-4 rounded-lg font-semibold text-lg hover:bg-green-700 transition-colors">
+                    📱 Scan QR Code
+                </button>
+            </div>
+
+            <!-- Personal Score History -->
+            <div id="scoreHistory" class="bg-white rounded-lg shadow-lg p-6 mb-6">
+                <h3 class="text-lg font-semibold text-gray-800 mb-4">Your Recent Scans</h3>
+                <div id="historyList" class="space-y-2">
+                    <p class="text-gray-500 text-center py-4">No scans yet</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- QR Scanner Modal -->
+        <div id="scannerModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50">
+            <div class="flex items-center justify-center min-h-screen p-4">
+                <div class="bg-white rounded-lg p-6 w-full max-w-md">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-lg font-semibold">Scan QR Code</h3>
+                        <button id="closeScanner" class="text-gray-500 hover:text-gray-700">✕</button>
+                    </div>
+                    <div id="qr-reader" class="qr-scanner-container"></div>
+                    <div id="scanResult" class="mt-4 hidden">
+                        <div class="p-4 rounded-lg bg-green-100 border border-green-300">
+                            <p class="text-green-800 font-semibold">Scan Successful!</p>
+                            <p id="scanPoints" class="text-green-700"></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Leaderboard -->
+        <div id="leaderboard" class="bg-white rounded-lg shadow-lg p-6">
+            <h3 class="text-xl font-semibold text-gray-800 mb-4">🏆 Live Leaderboard</h3>
+            <div id="leaderboardList" class="space-y-2">
+                <div class="text-center py-8">
+                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                    <p class="text-gray-600 mt-2">Loading leaderboard...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Admin Panel -->
+        <div id="adminPanel" class="hidden">
+            <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-2xl font-bold text-gray-800">Admin Panel</h2>
+                    <a href="#" class="text-blue-600 hover:text-blue-800">← Back to Login</a>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                    <button id="generateCodesBtn" class="bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors">Generate QR Codes</button>
+                    <button id="viewLeaderboardBtn" class="bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition-colors">View Leaderboard</button>
+                    <button id="resetDataBtn" class="bg-red-600 text-white py-3 rounded-lg font-semibold hover:bg-red-700 transition-colors">Reset Data</button>
+                </div>
+            </div>
+            <div id="adminContent" class="bg-white rounded-lg shadow-lg p-6">
+                <div class="text-center py-8 text-gray-500">
+                    <p>Select an action above to get started</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration - Easy to modify for different events
+        const CONFIG = {
+            suppliers: [
+                { id: 'supplier_1', name: 'TechCorp Solutions' },
+                { id: 'supplier_2', name: 'Innovation Labs' },
+                { id: 'supplier_3', name: 'Future Systems' },
+                { id: 'supplier_4', name: 'Digital Dynamics' },
+                { id: 'supplier_5', name: 'Cloud Computing Inc' },
+                { id: 'supplier_6', name: 'Data Analytics Pro' },
+                { id: 'supplier_7', name: 'Security First' },
+                { id: 'supplier_8', name: 'Mobile Masters' },
+                { id: 'supplier_9', name: 'AI Innovations' },
+                { id: 'supplier_10', name: 'Blockchain Builders' },
+                { id: 'supplier_11', name: 'IoT Experts' },
+                { id: 'supplier_12', name: 'DevOps Solutions' },
+                { id: 'supplier_13', name: 'UX Design Studio' },
+                { id: 'supplier_14', name: 'Backend Builders' },
+                { id: 'supplier_15', name: 'Frontend Focus' },
+                { id: 'supplier_16', name: 'Database Dynamics' },
+                { id: 'supplier_17', name: 'API Architects' },
+                { id: 'supplier_18', name: 'Testing Titans' },
+                { id: 'supplier_19', name: 'Performance Pros' },
+                { id: 'supplier_20', name: 'Scalability Solutions' },
+                { id: 'supplier_21', name: 'Monitoring Masters' },
+                { id: 'supplier_22', name: 'Automation Aces' },
+                { id: 'supplier_23', name: 'Integration Experts' },
+                { id: 'supplier_24', name: 'Enterprise Solutions' }
+            ],
+            pointValues: {
+                checkin: 10,
+                good: 50,
+                excellent: 100
+            },
+            attendees: [
+                { badgeUid: 'ATT001', name: 'Alice Johnson' },
+                { badgeUid: 'ATT002', name: 'Bob Smith' },
+                { badgeUid: 'ATT003', name: 'Carol Davis' },
+                { badgeUid: 'ATT004', name: 'David Wilson' },
+                { badgeUid: 'ATT005', name: 'Emma Brown' },
+                { badgeUid: 'ATT006', name: 'Frank Miller' },
+                { badgeUid: 'ATT007', name: 'Grace Lee' },
+                { badgeUid: 'ATT008', name: 'Henry Taylor' },
+                { badgeUid: 'ATT009', name: 'Ivy Chen' },
+                { badgeUid: 'ATT010', name: 'Jack Anderson' },
+                { badgeUid: 'ATT011', name: 'Kate Martinez' },
+                { badgeUid: 'ATT012', name: 'Liam Thompson' },
+                { badgeUid: 'ATT013', name: 'Maya Garcia' },
+                { badgeUid: 'ATT014', name: 'Noah Rodriguez' },
+                { badgeUid: 'ATT015', name: 'Olivia White' },
+                { badgeUid: 'ATT016', name: 'Paul Harris' },
+                { badgeUid: 'ATT017', name: 'Quinn Clark' },
+                { badgeUid: 'ATT018', name: 'Ruby Lewis' },
+                { badgeUid: 'ATT019', name: 'Sam Walker' },
+                { badgeUid: 'ATT020', name: 'Tina Hall' },
+                { badgeUid: 'ATT021', name: 'Uma Young' },
+                { badgeUid: 'ATT022', name: 'Victor King' },
+                { badgeUid: 'ATT023', name: 'Wendy Wright' },
+                { badgeUid: 'ATT024', name: 'Xavier Lopez' },
+                { badgeUid: 'ATT025', name: 'Yara Hill' },
+                { badgeUid: 'ATT026', name: 'Zoe Green' },
+                { badgeUid: 'ATT027', name: 'Adam Scott' },
+                { badgeUid: 'ATT028', name: 'Beth Adams' },
+                { badgeUid: 'ATT029', name: 'Chris Baker' },
+                { badgeUid: 'ATT030', name: 'Diana Nelson' },
+                { badgeUid: 'ATT031', name: 'Eric Carter' },
+                { badgeUid: 'ATT032', name: 'Fiona Mitchell' },
+                { badgeUid: 'ATT033', name: 'George Perez' },
+                { badgeUid: 'ATT034', name: 'Hannah Roberts' },
+                { badgeUid: 'ATT035', name: 'Ian Turner' },
+                { badgeUid: 'ATT036', name: 'Julia Phillips' },
+                { badgeUid: 'ATT037', name: 'Kevin Campbell' },
+                { badgeUid: 'ATT038', name: 'Lisa Parker' },
+                { badgeUid: 'ATT039', name: 'Mike Evans' },
+                { badgeUid: 'ATT040', name: 'Nina Edwards' },
+                { badgeUid: 'ATT041', name: 'Oscar Collins' },
+                { badgeUid: 'ATT042', name: 'Paula Stewart' },
+                { badgeUid: 'ATT043', name: 'Quentin Sanchez' },
+                { badgeUid: 'ATT044', name: 'Rachel Morris' },
+                { badgeUid: 'ATT045', name: 'Steve Rogers' },
+                { badgeUid: 'ATT046', name: 'Tracy Reed' },
+                { badgeUid: 'ATT047', name: 'Ulrich Cook' },
+                { badgeUid: 'ATT048', name: 'Vera Morgan' },
+                { badgeUid: 'ATT049', name: 'Walter Bell' },
+                { badgeUid: 'ATT050', name: 'Ximena Murphy' },
+                { badgeUid: 'ATT051', name: 'Yuki Bailey' },
+                { badgeUid: 'ATT052', name: 'Zara Rivera' },
+                { badgeUid: 'ATT053', name: 'Aaron Cooper' },
+                { badgeUid: 'ATT054', name: 'Bella Richardson' },
+                { badgeUid: 'ATT055', name: 'Caleb Cox' },
+                { badgeUid: 'ATT056', name: 'Dakota Ward' },
+                { badgeUid: 'ATT057', name: 'Elena Torres' },
+                { badgeUid: 'ATT058', name: 'Felix Peterson' },
+                { badgeUid: 'ATT059', name: 'Gina Gray' },
+                { badgeUid: 'ATT060', name: 'Hugo Ramirez' },
+                { badgeUid: 'ATT061', name: 'Iris James' },
+                { badgeUid: 'ATT062', name: 'Jake Watson' },
+                { badgeUid: 'ATT063', name: 'Kira Brooks' },
+                { badgeUid: 'ATT064', name: 'Leo Kelly' },
+                { badgeUid: 'ATT065', name: 'Maya Sanders' },
+                { badgeUid: 'ATT066', name: 'Nate Price' },
+                { badgeUid: 'ATT067', name: 'Opal Bennett' },
+                { badgeUid: 'ATT068', name: 'Preston Wood' },
+                { badgeUid: 'ATT069', name: 'Quinn Barnes' },
+                { badgeUid: 'ATT070', name: 'Rosa Ross' },
+                { badgeUid: 'ATT071', name: 'Sebastian Henderson' },
+                { badgeUid: 'ATT072', name: 'Tessa Coleman' },
+                { badgeUid: 'ATT073', name: 'Ulysses Jenkins' },
+                { badgeUid: 'ATT074', name: 'Violet Perry' },
+                { badgeUid: 'ATT075', name: 'Winston Powell' },
+                { badgeUid: 'ATT076', name: 'Xara Long' },
+                { badgeUid: 'ATT077', name: 'Yasmine Patterson' },
+                { badgeUid: 'ATT078', name: 'Zachary Hughes' },
+                { badgeUid: 'ATT079', name: 'Abigail Flores' },
+                { badgeUid: 'ATT080', name: 'Benjamin Washington' },
+                { badgeUid: 'ATT081', name: 'Chloe Butler' },
+                { badgeUid: 'ATT082', name: 'Daniel Simmons' },
+                { badgeUid: 'ATT083', name: 'Eva Foster' },
+                { badgeUid: 'ATT084', name: 'Finn Gonzales' },
+                { badgeUid: 'ATT085', name: 'Gabriella Bryant' },
+                { badgeUid: 'ATT086', name: 'Harrison Alexander' },
+                { badgeUid: 'ATT087', name: 'Isabella Russell' },
+                { badgeUid: 'ATT088', name: 'Jaxon Griffin' },
+                { badgeUid: 'ATT089', name: 'Katherine Diaz' },
+                { badgeUid: 'ATT090', name: 'Liam Hayes' },
+                { badgeUid: 'ATT091', name: 'Madison Myers' },
+                { badgeUid: 'ATT092', name: 'Nathan Ford' },
+                { badgeUid: 'ATT093', name: 'Olivia Hamilton' },
+                { badgeUid: 'ATT094', name: 'Peyton Graham' },
+                { badgeUid: 'ATT095', name: 'Quinn Sullivan' },
+                { badgeUid: 'ATT096', name: 'Riley Wallace' },
+                { badgeUid: 'ATT097', name: 'Sophia Woods' },
+                { badgeUid: 'ATT098', name: 'Tyler Cole' },
+                { badgeUid: 'ATT099', name: 'Uma West' },
+                { badgeUid: 'ATT100', name: 'Victoria Jordan' },
+                { badgeUid: 'ATT101', name: 'William Owens' },
+                { badgeUid: 'ATT102', name: 'Xara Reynolds' },
+                { badgeUid: 'ATT103', name: 'Yara Fisher' },
+                { badgeUid: 'ATT104', name: 'Zoe Ellis' },
+                { badgeUid: 'ATT105', name: 'Aaron Harrison' },
+                { badgeUid: 'ATT106', name: 'Bella Gibson' },
+                { badgeUid: 'ATT107', name: 'Caleb Mcdonald' },
+                { badgeUid: 'ATT108', name: 'Dakota Cruz' },
+                { badgeUid: 'ATT109', name: 'Elena Marshall' },
+                { badgeUid: 'ATT110', name: 'Felix Ortiz' },
+                { badgeUid: 'ATT111', name: 'Gina Gomez' },
+                { badgeUid: 'ATT112', name: 'Hugo Murray' },
+                { badgeUid: 'ATT113', name: 'Iris Freeman' },
+                { badgeUid: 'ATT114', name: 'Jake Wells' },
+                { badgeUid: 'ATT115', name: 'Kira Webb' },
+                { badgeUid: 'ATT116', name: 'Leo Simpson' },
+                { badgeUid: 'ATT117', name: 'Maya Stevens' },
+                { badgeUid: 'ATT118', name: 'Nate Tucker' },
+                { badgeUid: 'ATT119', name: 'Opal Porter' },
+                { badgeUid: 'ATT120', name: 'Preston Hunter' },
+                { badgeUid: 'ATT121', name: 'Quinn Hicks' },
+                { badgeUid: 'ATT122', name: 'Rosa Crawford' },
+                { badgeUid: 'ATT123', name: 'Sebastian Henry' },
+                { badgeUid: 'ATT124', name: 'Tessa Boyd' },
+                { badgeUid: 'ATT125', name: 'Ulysses Mason' },
+                { badgeUid: 'ATT126', name: 'Violet Morales' },
+                { badgeUid: 'ATT127', name: 'Winston Kennedy' },
+                { badgeUid: 'ATT128', name: 'Xara Warren' },
+                { badgeUid: 'ATT129', name: 'Yasmine Dixon' },
+                { badgeUid: 'ATT130', name: 'Zachary Ramos' },
+                { badgeUid: 'ATT131', name: 'Abigail Reyes' },
+                { badgeUid: 'ATT132', name: 'Benjamin Burns' },
+                { badgeUid: 'ATT133', name: 'Chloe Gordon' },
+                { badgeUid: 'ATT134', name: 'Daniel Shaw' },
+                { badgeUid: 'ATT135', name: 'Eva Holmes' },
+                { badgeUid: 'ATT136', name: 'Finn Rice' },
+                { badgeUid: 'ATT137', name: 'Gabriella Robertson' },
+                { badgeUid: 'ATT138', name: 'Harrison Hunt' },
+                { badgeUid: 'ATT139', name: 'Isabella Black' },
+                { badgeUid: 'ATT140', name: 'Jaxon Daniels' },
+                { badgeUid: 'ATT141', name: 'Katherine Palmer' },
+                { badgeUid: 'ATT142', name: 'Liam Mills' },
+                { badgeUid: 'ATT143', name: 'Madison Nichols' },
+                { badgeUid: 'ATT144', name: 'Nathan Grant' },
+                { badgeUid: 'ATT145', name: 'Olivia Knight' },
+                { badgeUid: 'ATT146', name: 'Peyton Ferguson' },
+                { badgeUid: 'ATT147', name: 'Quinn Rose' },
+                { badgeUid: 'ATT148', name: 'Riley Stone' },
+                { badgeUid: 'ATT149', name: 'Sophia Hawkins' },
+                { badgeUid: 'ATT150', name: 'Tyler Dunn' },
+                { badgeUid: 'ATT151', name: 'Uma Perkins' },
+                { badgeUid: 'ATT152', name: 'Victoria Hudson' },
+                { badgeUid: 'ATT153', name: 'William Spencer' },
+                { badgeUid: 'ATT154', name: 'Xara Gardner' },
+                { badgeUid: 'ATT155', name: 'Yara Stephens' },
+                { badgeUid: 'ATT156', name: 'Zoe Payne' },
+                { badgeUid: 'ATT157', name: 'Aaron Pierce' },
+                { badgeUid: 'ATT158', name: 'Bella Berry' },
+                { badgeUid: 'ATT159', name: 'Caleb Matthews' },
+                { badgeUid: 'ATT160', name: 'Dakota Arnold' },
+                { badgeUid: 'ATT161', name: 'Elena Wagner' },
+                { badgeUid: 'ATT162', name: 'Felix Willis' },
+                { badgeUid: 'ATT163', name: 'Gina Ray' },
+                { badgeUid: 'ATT164', name: 'Hugo Watkins' },
+                { badgeUid: 'ATT165', name: 'Iris Olson' },
+                { badgeUid: 'ATT166', name: 'Jake Carroll' },
+                { badgeUid: 'ATT167', name: 'Kira Duncan' },
+                { badgeUid: 'ATT168', name: 'Leo Snyder' },
+                { badgeUid: 'ATT169', name: 'Maya Hart' },
+                { badgeUid: 'ATT170', name: 'Nate Cunningham' },
+                { badgeUid: 'ATT171', name: 'Opal Bradley' },
+                { badgeUid: 'ATT172', name: 'Preston Lane' },
+                { badgeUid: 'ATT173', name: 'Quinn Andrews' },
+                { badgeUid: 'ATT174', name: 'Riley Ruiz' },
+                { badgeUid: 'ATT175', name: 'Sophia Harper' },
+                { badgeUid: 'ATT176', name: 'Tyler Fox' },
+                { badgeUid: 'ATT177', name: 'Uma Riley' },
+                { badgeUid: 'ATT178', name: 'Victoria Armstrong' },
+                { badgeUid: 'ATT179', name: 'William Carpenter' },
+                { badgeUid: 'ATT180', name: 'Xara Weaver' },
+                { badgeUid: 'ATT181', name: 'Yara Greene' },
+                { badgeUid: 'ATT182', name: 'Zoe Lawrence' },
+                { badgeUid: 'ATT183', name: 'Aaron Elliott' },
+                { badgeUid: 'ATT184', name: 'Bella Chavez' },
+                { badgeUid: 'ATT185', name: 'Caleb Sims' },
+                { badgeUid: 'ATT186', name: 'Dakota Austin' },
+                { badgeUid: 'ATT187', name: 'Elena Peters' },
+                { badgeUid: 'ATT188', name: 'Felix Kelley' },
+                { badgeUid: 'ATT189', name: 'Gina Franklin' },
+                { badgeUid: 'ATT190', name: 'Hugo Lawson' },
+                { badgeUid: 'ATT191', name: 'Iris Fields' },
+                { badgeUid: 'ATT192', name: 'Jake Gutierrez' },
+                { badgeUid: 'ATT193', name: 'Kira Ryan' },
+                { badgeUid: 'ATT194', name: 'Leo Schmidt' },
+                { badgeUid: 'ATT195', name: 'Maya Carr' },
+                { badgeUid: 'ATT196', name: 'Nate Vasquez' },
+                { badgeUid: 'ATT197', name: 'Opal Castillo' },
+                { badgeUid: 'ATT198', name: 'Preston Wheeler' },
+                { badgeUid: 'ATT199', name: 'Quinn Chapman' },
+                { badgeUid: 'ATT200', name: 'Riley Oliver' }
+            ]
+        };
+
+        // Firebase configuration - Replace with your actual config
+        const firebaseConfig = {
+            apiKey: "your-api-key",
+            authDomain: "your-project.firebaseapp.com",
+            projectId: "your-project-id",
+            storageBucket: "your-project.appspot.com",
+            messagingSenderId: "123456789",
+            appId: "your-app-id"
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+        const auth = firebase.auth();
+
+        // Global state
+        let currentUser = null;
+        let html5QrcodeScanner = null;
+        let userScans = new Set(); // Track user's scanned codes to prevent duplicates
+
+        // Initialize the app
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeApp();
+        });
+
+        function initializeApp() {
+            setupEventListeners();
+            checkUrlHash();
+            loadLeaderboard();
+        }
+
+        function setupEventListeners() {
+            // Login
+            document.getElementById('loginBtn').addEventListener('click', handleLogin);
+            document.getElementById('badgeUid').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') handleLogin();
+            });
+
+            // Logout
+            document.getElementById('logoutBtn').addEventListener('click', handleLogout);
+
+            // Scanner
+            document.getElementById('scanBtn').addEventListener('click', openScanner);
+            document.getElementById('closeScanner').addEventListener('click', closeScanner);
+
+            // Admin
+            document.getElementById('generateCodesBtn').addEventListener('click', generateQRCodes);
+            document.getElementById('viewLeaderboardBtn').addEventListener('click', viewLeaderboard);
+            document.getElementById('resetDataBtn').addEventListener('click', resetData);
+        }
+
+        function checkUrlHash() {
+            if (window.location.hash === '#admin') {
+                showAdminPanel();
+            }
+        }
+
+        async function handleLogin() {
+            const badgeUid = document.getElementById('badgeUid').value.trim().toUpperCase();
+            const errorDiv = document.getElementById('loginError');
+
+            if (!badgeUid) {
+                showError('Please enter your Badge UID');
+                return;
+            }
+
+            // Validate against configured attendees
+            const attendee = CONFIG.attendees.find(a => a.badgeUid === badgeUid);
+            if (!attendee) {
+                showError('Invalid Badge UID. Please check your badge and try again.');
+                return;
+            }
+
+            try {
+                // Sign in anonymously to get Firebase auth
+                await auth.signInAnonymously();
+                
+                // Initialize user data in Firestore
+                await initializeUserData(attendee);
+                
+                currentUser = attendee;
+                showDashboard();
+                loadUserData();
+            } catch (error) {
+                console.error('Login error:', error);
+                showError('Login failed. Please try again.');
+            }
+        }
+
+        async function initializeUserData(attendee) {
+            const userRef = db.collection('attendees').doc(attendee.badgeUid);
+            const userDoc = await userRef.get();
+            
+            if (!userDoc.exists) {
+                await userRef.set({
+                    name: attendee.name,
+                    score: 0,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+            }
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('loginError');
+            errorDiv.textContent = message;
+            errorDiv.classList.remove('hidden');
+            setTimeout(() => errorDiv.classList.add('hidden'), 5000);
+        }
+
+        function showDashboard() {
+            document.getElementById('loginScreen').classList.add('hidden');
+            document.getElementById('dashboard').classList.remove('hidden');
+            document.getElementById('leaderboard').classList.remove('hidden');
+            window.location.hash = '';
+        }
+
+        function showAdminPanel() {
+            document.getElementById('loginScreen').classList.add('hidden');
+            document.getElementById('dashboard').classList.add('hidden');
+            document.getElementById('leaderboard').classList.add('hidden');
+            document.getElementById('adminPanel').classList.remove('hidden');
+        }
+
+        function handleLogout() {
+            currentUser = null;
+            userScans.clear();
+            auth.signOut();
+            
+            document.getElementById('badgeUid').value = '';
+            document.getElementById('loginScreen').classList.remove('hidden');
+            document.getElementById('dashboard').classList.add('hidden');
+            document.getElementById('leaderboard').classList.add('hidden');
+            document.getElementById('adminPanel').classList.add('hidden');
+        }
+
+        async function loadUserData() {
+            if (!currentUser) return;
+
+            try {
+                const userRef = db.collection('attendees').doc(currentUser.badgeUid);
+                const userDoc = await userRef.get();
+                
+                if (userDoc.exists) {
+                    const userData = userDoc.data();
+                    document.getElementById('userName').textContent = userData.name;
+                    document.getElementById('userScore').textContent = userData.score || 0;
+                }
+
+                // Load user's scan history
+                await loadUserHistory();
+                
+                // Set up real-time listener for user data
+                userRef.onSnapshot((doc) => {
+                    if (doc.exists) {
+                        const userData = doc.data();
+                        document.getElementById('userScore').textContent = userData.score || 0;
+                    }
+                });
+            } catch (error) {
+                console.error('Error loading user data:', error);
+            }
+        }
+
+        async function loadUserHistory() {
+            if (!currentUser) return;
+
+            try {
+                const scansRef = db.collection('scans')
+                    .where('badgeUid', '==', currentUser.badgeUid)
+                    .orderBy('timestamp', 'desc')
+                    .limit(10);
+                
+                const snapshot = await scansRef.get();
+                const historyList = document.getElementById('historyList');
+                
+                if (snapshot.empty) {
+                    historyList.innerHTML = '<p class="text-gray-500 text-center py-4">No scans yet</p>';
+                    return;
+                }
+
+                historyList.innerHTML = '';
+                snapshot.forEach(doc => {
+                    const scan = doc.data();
+                    const supplier = CONFIG.suppliers.find(s => s.id === scan.supplierId);
+                    const points = CONFIG.pointValues[scan.scanType];
+                    
+                    const historyItem = document.createElement('div');
+                    historyItem.className = 'flex justify-between items-center p-3 bg-gray-50 rounded-lg';
+                    historyItem.innerHTML = `
+                        <div>
+                            <p class="font-medium">${supplier ? supplier.name : scan.supplierId}</p>
+                            <p class="text-sm text-gray-600">${scan.scanType.charAt(0).toUpperCase() + scan.scanType.slice(1)} Chat</p>
+                        </div>
+                        <span class="font-bold text-green-600">+${points} pts</span>
+                    `;
+                    historyList.appendChild(historyItem);
+                });
+            } catch (error) {
+                console.error('Error loading user history:', error);
+            }
+        }
+
+        function openScanner() {
+            document.getElementById('scannerModal').classList.remove('hidden');
+            
+            if (html5QrcodeScanner) {
+                html5QrcodeScanner.clear();
+            }
+
+            html5QrcodeScanner = new Html5Qrcode("qr-reader");
+            
+            const config = {
+                fps: 10,
+                qrbox: { width: 250, height: 250 }
+            };
+
+            html5QrcodeScanner.start(
+                { facingMode: "environment" },
+                config,
+                onScanSuccess,
+                onScanFailure
+            ).catch(err => {
+                console.error('Scanner start error:', err);
+                alert('Failed to start camera. Please ensure camera permissions are granted.');
+                closeScanner();
+            });
+        }
+
+        function closeScanner() {
+            if (html5QrcodeScanner) {
+                html5QrcodeScanner.stop().then(() => {
+                    html5QrcodeScanner.clear();
+                }).catch(err => {
+                    console.error('Scanner stop error:', err);
+                });
+            }
+            
+            document.getElementById('scannerModal').classList.add('hidden');
+            document.getElementById('scanResult').classList.add('hidden');
+        }
+
+        async function onScanSuccess(decodedText, decodedResult) {
+            try {
+                const scanData = JSON.parse(decodedText);
+                
+                if (!scanData.supplierId || !scanData.scanType) {
+                    throw new Error('Invalid QR code format');
+                }
+
+                // Check if this scan type is valid
+                if (!CONFIG.pointValues.hasOwnProperty(scanData.scanType)) {
+                    throw new Error('Invalid scan type');
+                }
+
+                // Create unique scan identifier
+                const scanId = `${currentUser.badgeUid}_${scanData.supplierId}_${scanData.scanType}`;
+                
+                // Check for duplicate scans
+                if (userScans.has(scanId)) {
+                    throw new Error('You have already scanned this QR code');
+                }
+
+                // Check if scan already exists in database
+                const existingScanRef = db.collection('scans').doc(scanId);
+                const existingScan = await existingScanRef.get();
+                
+                if (existingScan.exists) {
+                    throw new Error('This QR code has already been scanned');
+                }
+
+                // Process the scan
+                await processScan(scanData, scanId);
+                
+                // Add to user's scanned codes
+                userScans.add(scanId);
+                
+                // Show success message
+                const points = CONFIG.pointValues[scanData.scanType];
+                const supplier = CONFIG.suppliers.find(s => s.id === scanData.supplierId);
+                
+                document.getElementById('scanPoints').textContent = `+${points} points from ${supplier ? supplier.name : scanData.supplierId}!`;
+                document.getElementById('scanResult').classList.remove('hidden');
+                
+                // Close scanner after a delay
+                setTimeout(() => {
+                    closeScanner();
+                    loadUserData(); // Refresh user data
+                }, 2000);
+
+            } catch (error) {
+                console.error('Scan processing error:', error);
+                alert(`Scan failed: ${error.message}`);
+                closeScanner();
+            }
+        }
+
+        function onScanFailure(error) {
+            // Ignore common scanning errors
+        }
+
+        async function processScan(scanData, scanId) {
+            const points = CONFIG.pointValues[scanData.scanType];
+            
+            // Add scan record
+            await db.collection('scans').doc(scanId).set({
+                badgeUid: currentUser.badgeUid,
+                supplierId: scanData.supplierId,
+                scanType: scanData.scanType,
+                points: points,
+                timestamp: firebase.firestore.FieldValue.serverTimestamp()
+            });
+
+            // Update user score
+            const userRef = db.collection('attendees').doc(currentUser.badgeUid);
+            await userRef.update({
+                score: firebase.firestore.FieldValue.increment(points)
+            });
+        }
+
+        async function loadLeaderboard() {
+            try {
+                const attendeesRef = db.collection('attendees').orderBy('score', 'desc').limit(20);
+                const snapshot = await attendeesRef.get();
+                const leaderboardList = document.getElementById('leaderboardList');
+                
+                if (snapshot.empty) {
+                    leaderboardList.innerHTML = '<p class="text-gray-500 text-center py-4">No scores yet</p>';
+                    return;
+                }
+
+                leaderboardList.innerHTML = '';
+                let rank = 1;
+                
+                snapshot.forEach(doc => {
+                    const attendee = doc.data();
+                    const isCurrentUser = currentUser && doc.id === currentUser.badgeUid;
+                    
+                    const leaderItem = document.createElement('div');
+                    leaderItem.className = `flex justify-between items-center p-3 rounded-lg ${isCurrentUser ? 'bg-blue-100 border-2 border-blue-300' : 'bg-gray-50'}`;
+                    
+                    const rankEmoji = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `#${rank}`;
+                    
+                    leaderItem.innerHTML = `
+                        <div class="flex items-center space-x-3">
+                            <span class="font-bold text-lg">${rankEmoji}</span>
+                            <div>
+                                <p class="font-medium ${isCurrentUser ? 'text-blue-800' : 'text-gray-800'}">${attendee.name} ${isCurrentUser ? '(You)' : ''}</p>
+                            </div>
+                        </div>
+                        <span class="font-bold text-xl ${isCurrentUser ? 'text-blue-600' : 'text-green-600'}">${attendee.score || 0} pts</span>
+                    `;
+                    
+                    leaderboardList.appendChild(leaderItem);
+                    rank++;
+                });
+
+                // Set up real-time listener for leaderboard updates
+                attendeesRef.onSnapshot((snapshot) => {
+                    loadLeaderboard(); // Refresh leaderboard
+                });
+
+            } catch (error) {
+                console.error('Error loading leaderboard:', error);
+                const leaderboardList = document.getElementById('leaderboardList');
+                leaderboardList.innerHTML = '<p class="text-red-500 text-center py-4">Error loading leaderboard</p>';
+            }
+        }
+
+        // Admin functions
+        function generateQRCodes() {
+            const adminContent = document.getElementById('adminContent');
+            adminContent.innerHTML = '<h3 class="text-xl font-semibold mb-4">QR Codes for Suppliers</h3>';
+            
+            const codesContainer = document.createElement('div');
+            codesContainer.className = 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6';
+            
+            CONFIG.suppliers.forEach(supplier => {
+                const supplierDiv = document.createElement('div');
+                supplierDiv.className = 'bg-gray-50 p-4 rounded-lg';
+                supplierDiv.innerHTML = `<h4 class="font-semibold mb-4 text-center">${supplier.name}</h4>`;
+                
+                ['checkin', 'good', 'excellent'].forEach(scanType => {
+                    const scanDiv = document.createElement('div');
+                    scanDiv.className = 'mb-4 text-center';
+                    
+                    const scanData = {
+                        supplierId: supplier.id,
+                        scanType: scanType
+                    };
+                    
+                    const qrCodeDiv = document.createElement('div');
+                    qrCodeDiv.className = 'mb-2';
+                    
+                    QRCode.toCanvas(qrCodeDiv, JSON.stringify(scanData), {
+                        width: 120,
+                        height: 120,
+                        margin: 1
+                    }, function (error) {
+                        if (error) console.error('QR code generation error:', error);
+                    });
+                    
+                    const label = scanType.charAt(0).toUpperCase() + scanType.slice(1) + 
+                                 (scanType === 'checkin' ? ' (10 pts)' : 
+                                  scanType === 'good' ? ' (50 pts)' : ' (100 pts)');
+                    
+                    scanDiv.innerHTML = `
+                        ${qrCodeDiv.outerHTML}
+                        <p class="text-sm font-medium">${label}</p>
+                    `;
+                    
+                    supplierDiv.appendChild(scanDiv);
+                });
+                
+                codesContainer.appendChild(supplierDiv);
+            });
+            
+            adminContent.appendChild(codesContainer);
+            
+            // Add print button
+            const printBtn = document.createElement('button');
+            printBtn.className = 'mt-6 w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors';
+            printBtn.textContent = '🖨️ Print QR Codes';
+            printBtn.onclick = () => window.print();
+            adminContent.appendChild(printBtn);
+        }
+
+        function viewLeaderboard() {
+            const adminContent = document.getElementById('adminContent');
+            adminContent.innerHTML = '<h3 class="text-xl font-semibold mb-4">Live Leaderboard (Admin View)</h3>';
+            
+            const leaderboardDiv = document.createElement('div');
+            leaderboardDiv.id = 'adminLeaderboard';
+            adminContent.appendChild(leaderboardDiv);
+            
+            loadAdminLeaderboard();
+        }
+
+        async function loadAdminLeaderboard() {
+            try {
+                const attendeesRef = db.collection('attendees').orderBy('score', 'desc');
+                const snapshot = await attendeesRef.get();
+                const leaderboardDiv = document.getElementById('adminLeaderboard');
+                
+                if (snapshot.empty) {
+                    leaderboardDiv.innerHTML = '<p class="text-gray-500 text-center py-4">No scores yet</p>';
+                    return;
+                }
+
+                leaderboardDiv.innerHTML = '';
+                let rank = 1;
+                
+                snapshot.forEach(doc => {
+                    const attendee = doc.data();
+                    
+                    const leaderItem = document.createElement('div');
+                    leaderItem.className = 'flex justify-between items-center p-3 bg-gray-50 rounded-lg mb-2';
+                    
+                    const rankEmoji = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `#${rank}`;
+                    
+                    leaderItem.innerHTML = `
+                        <div class="flex items-center space-x-3">
+                            <span class="font-bold text-lg">${rankEmoji}</span>
+                            <div>
+                                <p class="font-medium text-gray-800">${attendee.name}</p>
+                                <p class="text-sm text-gray-600">Badge: ${doc.id}</p>
+                            </div>
+                        </div>
+                        <span class="font-bold text-xl text-green-600">${attendee.score || 0} pts</span>
+                    `;
+                    
+                    leaderboardDiv.appendChild(leaderItem);
+                    rank++;
+                });
+
+                // Set up real-time listener
+                attendeesRef.onSnapshot((snapshot) => {
+                    loadAdminLeaderboard();
+                });
+
+            } catch (error) {
+                console.error('Error loading admin leaderboard:', error);
+                const leaderboardDiv = document.getElementById('adminLeaderboard');
+                leaderboardDiv.innerHTML = '<p class="text-red-500 text-center py-4">Error loading leaderboard</p>';
+            }
+        }
+
+        async function resetData() {
+            if (!confirm('Are you sure you want to reset all data? This action cannot be undone.')) {
+                return;
+            }
+
+            try {
+                // Delete all scans
+                const scansSnapshot = await db.collection('scans').get();
+                const batch1 = db.batch();
+                scansSnapshot.docs.forEach(doc => batch1.delete(doc.ref));
+                await batch1.commit();
+
+                // Reset all attendee scores
+                const attendeesSnapshot = await db.collection('attendees').get();
+                const batch2 = db.batch();
+                attendeesSnapshot.docs.forEach(doc => {
+                    batch2.update(doc.ref, { score: 0 });
+                });
+                await batch2.commit();
+
+                alert('Data reset successfully!');
+                if (document.getElementById('adminLeaderboard')) {
+                    loadAdminLeaderboard();
+                }
+
+            } catch (error) {
+                console.error('Error resetting data:', error);
+                alert('Error resetting data. Please try again.');
+            }
+        }
+    </script>
+</body>
+</html>
