@@ -23,6 +23,18 @@
             0%, 100% { opacity: 1; }
             50% { opacity: 0.5; }
         }
+        .qr-image {
+            width: 120px;
+            height: 120px;
+            border: 1px solid #e5e7eb;
+            border-radius: 4px;
+        }
+        .qr-code-canvas {
+            min-height: 120px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
     </style>
 </head>
 <body class="bg-gray-50 min-h-screen">
@@ -126,8 +138,9 @@
                     <h2 class="text-2xl font-bold text-gray-800">Admin Panel</h2>
                     <a href="#" id="adminLogout" class="text-blue-600 hover:text-blue-800">← Back to Login</a>
                 </div>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
                     <button id="generateCodesBtn" class="bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors">Generate QR Codes</button>
+                    <button id="testQrBtn" class="bg-yellow-600 text-white py-3 rounded-lg font-semibold hover:bg-yellow-700 transition-colors">Test QR Code</button>
                     <button id="viewLeaderboardBtn" class="bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition-colors">View Leaderboard</button>
                     <button id="resetDataBtn" class="bg-red-600 text-white py-3 rounded-lg font-semibold hover:bg-red-700 transition-colors">Reset Data</button>
                 </div>
@@ -438,6 +451,7 @@
 
             // Admin Panel
             document.getElementById('generateCodesBtn').addEventListener('click', generateQRCodes);
+            document.getElementById('testQrBtn').addEventListener('click', testQRCode);
             document.getElementById('viewLeaderboardBtn').addEventListener('click', viewLeaderboard);
             document.getElementById('resetDataBtn').addEventListener('click', resetData);
         }
@@ -800,6 +814,62 @@
         }
 
         // Admin functions
+        function testQRCode() {
+            if (!isAdminAuthenticated) {
+                alert('Please authenticate as admin first');
+                showAdminPasswordScreen();
+                return;
+            }
+            
+            // Check if QRCode library is available
+            if (typeof QRCode === 'undefined') {
+                alert('QR Code library not loaded. Please refresh the page and try again.');
+                console.error('QRCode library not found');
+                return;
+            }
+            
+            console.log('Testing QR code generation...');
+            
+            const adminContent = document.getElementById('adminContent');
+            adminContent.innerHTML = '<h3 class="text-xl font-semibold mb-4">QR Code Test</h3>';
+            
+            const testDiv = document.createElement('div');
+            testDiv.className = 'text-center p-8 border border-gray-300 rounded-lg';
+            
+            const testData = {
+                supplierId: 'test_supplier',
+                scanType: 'test',
+                version: '1.0'
+            };
+            
+            QRCode.toDataURL(JSON.stringify(testData), {
+                width: 120,
+                height: 120,
+                margin: 2,
+                color: {
+                    dark: '#000000',
+                    light: '#FFFFFF'
+                },
+                errorCorrectionLevel: 'M'
+            }, function (error, url) {
+                if (error) {
+                    console.error('Test QR code generation error:', error);
+                    testDiv.innerHTML = '<p class="text-red-500">QR Code Test Failed: ' + error.message + '</p>';
+                } else {
+                    console.log('Test QR code generated successfully');
+                    const img = document.createElement('img');
+                    img.src = url;
+                    img.alt = 'Test QR Code';
+                    img.className = 'qr-image';
+                    testDiv.innerHTML = '<p class="text-green-600 mb-4">QR Code Test Successful!</p>';
+                    testDiv.appendChild(img);
+                    testDiv.innerHTML += '<p class="text-sm text-gray-600 mt-2">If you can see this QR code, the library is working correctly.</p>';
+                }
+            });
+            
+            adminContent.appendChild(testDiv);
+        }
+
         function generateQRCodes() {
             if (!isAdminAuthenticated) {
                 alert('Please authenticate as admin first');
@@ -807,12 +877,26 @@
                 return;
             }
             
+            // Check if QRCode library is available
+            if (typeof QRCode === 'undefined') {
+                alert('QR Code library not loaded. Please refresh the page and try again.');
+                console.error('QRCode library not found');
+                return;
+            }
+            
+            console.log('Starting QR code generation...');
+            
             const adminContent = document.getElementById('adminContent');
             adminContent.innerHTML = '<h3 class="text-xl font-semibold mb-4">QR Codes for Suppliers</h3>';
             
-            // Clear any existing QR codes
-            const existingCodes = adminContent.querySelectorAll('.qr-code-canvas');
-            existingCodes.forEach(canvas => canvas.remove());
+            // Add loading indicator
+            const loadingDiv = document.createElement('div');
+            loadingDiv.className = 'text-center py-8';
+            loadingDiv.innerHTML = `
+                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                <p class="text-gray-600 mt-2">Generating QR codes...</p>
+            `;
+            adminContent.appendChild(loadingDiv);
             
             const codesContainer = document.createElement('div');
             codesContainer.className = 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6';
@@ -839,6 +923,9 @@
                     qrCodeDiv.className = 'mb-2 qr-code-canvas';
                     qrCodeDiv.id = qrId;
                     
+                    // Add placeholder
+                    qrCodeDiv.innerHTML = '<div class="text-gray-400 text-xs">Generating...</div>';
+                    
                     // Generate QR code with consistent settings using toDataURL
                     QRCode.toDataURL(JSON.stringify(scanData), {
                         width: 120,
@@ -854,10 +941,19 @@
                             console.error(`QR code generation error for ${qrId}:`, error);
                             qrCodeDiv.innerHTML = '<p class="text-red-500 text-xs">QR Code Error</p>';
                         } else {
+                            console.log(`QR code generated successfully for ${qrId}`);
                             const img = document.createElement('img');
                             img.src = url;
                             img.alt = `QR Code for ${supplier.name} - ${scanType}`;
                             img.className = 'qr-image';
+                            img.onload = () => {
+                                console.log(`QR image loaded for ${qrId}`);
+                            };
+                            img.onerror = () => {
+                                console.error(`QR image failed to load for ${qrId}`);
+                                qrCodeDiv.innerHTML = '<p class="text-red-500 text-xs">Image Load Error</p>';
+                            };
+                            qrCodeDiv.innerHTML = '';
                             qrCodeDiv.appendChild(img);
                         }
                     });
@@ -884,6 +980,8 @@
                 codesContainer.appendChild(supplierDiv);
             });
             
+            // Remove loading indicator and add the codes container
+            adminContent.removeChild(loadingDiv);
             adminContent.appendChild(codesContainer);
             
             // Add summary
@@ -909,6 +1007,8 @@
             printBtn.textContent = '🖨️ Print QR Codes';
             printBtn.onclick = () => window.print();
             adminContent.appendChild(printBtn);
+            
+            console.log('QR code generation completed. Check console for individual code status.');
         }
 
         function viewLeaderboard() {
