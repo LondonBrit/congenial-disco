@@ -304,8 +304,8 @@
                 { badgeUid: 'ATT126', name: 'Violet Morales' },
                 { badgeUid: 'ATT127', name: 'Winston Kennedy' },
                 { badgeUid: 'ATT128', name: 'Xara Warren' },
-                { badgeUid: 'ATT129', name: 'Yasmine Dixon' },
-                { badgeUid: 'ATT130', name: 'Zachary Ramos' },
+                { badgeUid: '123456', name: 'Andre Peltier' },
+                { badgeUid: 'abcdef', name: 'Edward Moores' },
                 { badgeUid: 'ATT131', name: 'Abigail Reyes' },
                 { badgeUid: 'ATT132', name: 'Benjamin Burns' },
                 { badgeUid: 'ATT133', name: 'Chloe Gordon' },
@@ -839,8 +839,8 @@
                     qrCodeDiv.className = 'mb-2 qr-code-canvas';
                     qrCodeDiv.id = qrId;
                     
-                    // Generate QR code with consistent settings
-                    QRCode.toCanvas(qrCodeDiv, JSON.stringify(scanData), {
+                    // Generate QR code with consistent settings using toDataURL
+                    QRCode.toDataURL(JSON.stringify(scanData), {
                         width: 120,
                         height: 120,
                         margin: 2,
@@ -849,9 +849,16 @@
                             light: '#FFFFFF'
                         },
                         errorCorrectionLevel: 'M'
-                    }, function (error) {
+                    }, function (error, url) {
                         if (error) {
                             console.error(`QR code generation error for ${qrId}:`, error);
+                            qrCodeDiv.innerHTML = '<p class="text-red-500 text-xs">QR Code Error</p>';
+                        } else {
+                            const img = document.createElement('img');
+                            img.src = url;
+                            img.alt = `QR Code for ${supplier.name} - ${scanType}`;
+                            img.className = 'qr-image';
+                            qrCodeDiv.appendChild(img);
                         }
                     });
                     
@@ -859,11 +866,17 @@
                     const label = scanType.charAt(0).toUpperCase() + scanType.slice(1) + 
                                  ` (${points} ${points === 1 ? 'pt' : 'pts'})`;
                     
-                    scanDiv.innerHTML = `
-                        ${qrCodeDiv.outerHTML}
-                        <p class="text-sm font-medium mt-2">${label}</p>
-                        <p class="text-xs text-gray-500 mt-1">ID: ${qrId}</p>
-                    `;
+                    scanDiv.appendChild(qrCodeDiv);
+                    
+                    const labelP = document.createElement('p');
+                    labelP.className = 'text-sm font-medium mt-2';
+                    labelP.textContent = label;
+                    scanDiv.appendChild(labelP);
+                    
+                    const idP = document.createElement('p');
+                    idP.className = 'text-xs text-gray-500 mt-1';
+                    idP.textContent = `ID: ${qrId}`;
+                    scanDiv.appendChild(idP);
                     
                     supplierDiv.appendChild(scanDiv);
                 });
