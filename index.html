@@ -8,15 +8,37 @@
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
-    <script src="https://unpkg.com/qrcode@1.5.3/build/qrcode.min.js"></script>
+    <!-- Try multiple QR code library CDNs -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
     <script>
-        // Fallback QR code library loading
-        if (typeof QRCode === 'undefined') {
-            console.log('Primary QR code library failed, trying fallback...');
+        // Check if any QR code library loaded
+        window.qrLibraryLoaded = false;
+        
+        function checkQRLibrary() {
+            if (typeof qrcode !== 'undefined') {
+                window.qrLibraryLoaded = true;
+                console.log('QR Code library loaded successfully (qrcode-generator)');
+                return true;
+            }
+            return false;
+        }
+        
+        // Check immediately
+        checkQRLibrary();
+        
+        // Also try the original library as fallback
+        if (!window.qrLibraryLoaded) {
+            console.log('Trying fallback QR code library...');
             const script = document.createElement('script');
-            script.src = 'https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js';
+            script.src = 'https://unpkg.com/qrcode@1.5.3/build/qrcode.min.js';
+            script.onload = function() {
+                if (typeof QRCode !== 'undefined') {
+                    window.qrLibraryLoaded = true;
+                    console.log('Fallback QR Code library loaded successfully (qrcode)');
+                }
+            };
             script.onerror = function() {
-                console.error('All QR code libraries failed to load');
+                console.error('Fallback QR code library also failed');
             };
             document.head.appendChild(script);
         }
@@ -427,6 +449,47 @@
         let userScans = new Set(); // Track user's scanned codes to prevent duplicates
         let isAdminAuthenticated = false;
 
+        // QR Code generation helper function
+        function generateQRCodeImage(data, options = {}) {
+            return new Promise((resolve, reject) => {
+                // Try qrcode-generator library first
+                if (typeof qrcode !== 'undefined') {
+                    try {
+                        const qr = qrcode(0, 'M');
+                        qr.addData(data);
+                        qr.make();
+                        const qrDataURL = qr.createDataURL(4, 8);
+                        resolve(qrDataURL);
+                        return;
+                    } catch (error) {
+                        console.error('qrcode-generator error:', error);
+                    }
+                }
+                
+                // Try QRCode library as fallback
+                if (typeof QRCode !== 'undefined') {
+                    QRCode.toDataURL(data, {
+                        width: options.width || 120,
+                        height: options.height || 120,
+                        margin: options.margin || 2,
+                        color: options.color || {
+                            dark: '#000000',
+                            light: '#FFFFFF'
+                        },
+                        errorCorrectionLevel: options.errorCorrectionLevel || 'M'
+                    }, (error, url) => {
+                        if (error) {
+                            reject(error);
+                        } else {
+                            resolve(url);
+                        }
+                    });
+                } else {
+                    reject(new Error('No QR code library available'));
+                }
+            });
+        }
+
         // Initialize the app
         document.addEventListener('DOMContentLoaded', function() {
             initializeApp();
@@ -826,27 +889,10 @@
         }
 
         // Admin functions
-        function testQRCode() {
+        async function testQRCode() {
             if (!isAdminAuthenticated) {
                 alert('Please authenticate as admin first');
                 showAdminPasswordScreen();
-                return;
-            }
-            
-            // Check if QRCode library is available
-            if (typeof QRCode === 'undefined') {
-                console.log('QRCode library not found, waiting for fallback to load...');
-                // Wait a moment for fallback library to load
-                setTimeout(() => {
-                    if (typeof QRCode === 'undefined') {
-                        alert('QR Code library not loaded. Please refresh the page and try again.');
-                        console.error('QRCode library not found after timeout');
-                        return;
-                    } else {
-                        console.log('QRCode library loaded via fallback, retrying...');
-                        testQRCode(); // Retry the function
-                    }
-                }, 2000);
                 return;
             }
             
@@ -857,6 +903,8 @@
             
             const testDiv = document.createElement('div');
             testDiv.className = 'text-center p-8 border border-gray-300 rounded-lg';
+            testDiv.innerHTML = '<p class="text-blue-600">Testing QR code generation...</p>';
+            adminContent.appendChild(testDiv);
             
             const testData = {
                 supplierId: 'test_supplier',
@@ -864,55 +912,33 @@
                 version: '1.0'
             };
             
-            QRCode.toDataURL(JSON.stringify(testData), {
-                width: 120,
-                height: 120,
-                margin: 2,
-                color: {
-                    dark: '#000000',
-                    light: '#FFFFFF'
-                },
-                errorCorrectionLevel: 'M'
-            }, function (error, url) {
-                if (error) {
-                    console.error('Test QR code generation error:', error);
-                    testDiv.innerHTML = '<p class="text-red-500">QR Code Test Failed: ' + error.message + '</p>';
-                } else {
-                    console.log('Test QR code generated successfully');
-                    const img = document.createElement('img');
-                    img.src = url;
-                    img.alt = 'Test QR Code';
-                    img.className = 'qr-image';
-                    testDiv.innerHTML = '<p class="text-green-600 mb-4">QR Code Test Successful!</p>';
-                    testDiv.appendChild(img);
-                    testDiv.innerHTML += '<p class="text-sm text-gray-600 mt-2">If you can see this QR code, the library is working correctly.</p>';
-                }
-            });
-            
-            adminContent.appendChild(testDiv);
+            try {
+                const url = await generateQRCodeImage(JSON.stringify(testData), {
+                    width: 120,
+                    height: 120,
+                    margin: 2
+                });
+                
+                console.log('Test QR code generated successfully');
+                const img = document.createElement('img');
+                img.src = url;
+                img.alt = 'Test QR Code';
+                img.className = 'qr-image';
+                testDiv.innerHTML = '<p class="text-green-600 mb-4">QR Code Test Successful!</p>';
+                testDiv.appendChild(img);
+                testDiv.innerHTML += '<p class="text-sm text-gray-600 mt-2">If you can see this QR code, the library is working correctly.</p>';
+                
+            } catch (error) {
+                console.error('Test QR code generation error:', error);
+                testDiv.innerHTML = '<p class="text-red-500">QR Code Test Failed: ' + error.message + '</p>';
+                testDiv.innerHTML += '<p class="text-sm text-gray-600 mt-2">Try refreshing the page to reload the QR code libraries.</p>';
+            }
         }
 
-        function generateQRCodes() {
+        async function generateQRCodes() {
             if (!isAdminAuthenticated) {
                 alert('Please authenticate as admin first');
                 showAdminPasswordScreen();
-                return;
-            }
-            
-            // Check if QRCode library is available
-            if (typeof QRCode === 'undefined') {
-                console.log('QRCode library not found, waiting for fallback to load...');
-                // Wait a moment for fallback library to load
-                setTimeout(() => {
-                    if (typeof QRCode === 'undefined') {
-                        alert('QR Code library not loaded. Please refresh the page and try again.');
-                        console.error('QRCode library not found after timeout');
-                        return;
-                    } else {
-                        console.log('QRCode library loaded via fallback, retrying...');
-                        generateQRCodes(); // Retry the function
-                    }
-                }, 2000);
                 return;
             }
             
@@ -958,36 +984,29 @@
                     // Add placeholder
                     qrCodeDiv.innerHTML = '<div class="text-gray-400 text-xs">Generating...</div>';
                     
-                    // Generate QR code with consistent settings using toDataURL
-                    QRCode.toDataURL(JSON.stringify(scanData), {
+                    // Generate QR code using the helper function
+                    generateQRCodeImage(JSON.stringify(scanData), {
                         width: 120,
                         height: 120,
-                        margin: 2,
-                        color: {
-                            dark: '#000000',
-                            light: '#FFFFFF'
-                        },
-                        errorCorrectionLevel: 'M'
-                    }, function (error, url) {
-                        if (error) {
-                            console.error(`QR code generation error for ${qrId}:`, error);
-                            qrCodeDiv.innerHTML = '<p class="text-red-500 text-xs">QR Code Error</p>';
-                        } else {
-                            console.log(`QR code generated successfully for ${qrId}`);
-                            const img = document.createElement('img');
-                            img.src = url;
-                            img.alt = `QR Code for ${supplier.name} - ${scanType}`;
-                            img.className = 'qr-image';
-                            img.onload = () => {
-                                console.log(`QR image loaded for ${qrId}`);
-                            };
-                            img.onerror = () => {
-                                console.error(`QR image failed to load for ${qrId}`);
-                                qrCodeDiv.innerHTML = '<p class="text-red-500 text-xs">Image Load Error</p>';
-                            };
-                            qrCodeDiv.innerHTML = '';
-                            qrCodeDiv.appendChild(img);
-                        }
+                        margin: 2
+                    }).then(url => {
+                        console.log(`QR code generated successfully for ${qrId}`);
+                        const img = document.createElement('img');
+                        img.src = url;
+                        img.alt = `QR Code for ${supplier.name} - ${scanType}`;
+                        img.className = 'qr-image';
+                        img.onload = () => {
+                            console.log(`QR image loaded for ${qrId}`);
+                        };
+                        img.onerror = () => {
+                            console.error(`QR image failed to load for ${qrId}`);
+                            qrCodeDiv.innerHTML = '<p class="text-red-500 text-xs">Image Load Error</p>';
+                        };
+                        qrCodeDiv.innerHTML = '';
+                        qrCodeDiv.appendChild(img);
+                    }).catch(error => {
+                        console.error(`QR code generation error for ${qrId}:`, error);
+                        qrCodeDiv.innerHTML = '<p class="text-red-500 text-xs">QR Code Error</p>';
                     });
                     
                     const points = CONFIG.pointValues[scanType];
