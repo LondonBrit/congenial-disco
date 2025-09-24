@@ -171,9 +171,9 @@
                 { id: 'supplier_24', name: 'Enterprise Solutions' }
             ],
             pointValues: {
-                checkin: 10,
-                good: 50,
-                excellent: 100
+                checkin: 1,
+                chat: 2,
+                bonus: 3
             },
             attendees: [
                 { badgeUid: 'ATT001', name: 'Alice Johnson' },
@@ -622,7 +622,7 @@
                     historyItem.innerHTML = `
                         <div>
                             <p class="font-medium">${supplier ? supplier.name : scan.supplierId}</p>
-                            <p class="text-sm text-gray-600">${scan.scanType.charAt(0).toUpperCase() + scan.scanType.slice(1)} Chat</p>
+                            <p class="text-sm text-gray-600">${scan.scanType.charAt(0).toUpperCase() + scan.scanType.slice(1)}</p>
                         </div>
                         <span class="font-bold text-green-600">+${points} pts</span>
                     `;
@@ -806,8 +806,13 @@
                 showAdminPasswordScreen();
                 return;
             }
+            
             const adminContent = document.getElementById('adminContent');
             adminContent.innerHTML = '<h3 class="text-xl font-semibold mb-4">QR Codes for Suppliers</h3>';
+            
+            // Clear any existing QR codes
+            const existingCodes = adminContent.querySelectorAll('.qr-code-canvas');
+            existingCodes.forEach(canvas => canvas.remove());
             
             const codesContainer = document.createElement('div');
             codesContainer.className = 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6';
@@ -817,33 +822,47 @@
                 supplierDiv.className = 'bg-gray-50 p-4 rounded-lg';
                 supplierDiv.innerHTML = `<h4 class="font-semibold mb-4 text-center">${supplier.name}</h4>`;
                 
-                ['checkin', 'good', 'excellent'].forEach(scanType => {
+                ['checkin', 'chat', 'bonus'].forEach(scanType => {
                     const scanDiv = document.createElement('div');
-                    scanDiv.className = 'mb-4 text-center';
+                    scanDiv.className = 'mb-4 text-center border border-gray-200 rounded-lg p-3';
                     
+                    // Create consistent scan data with deterministic structure
                     const scanData = {
                         supplierId: supplier.id,
-                        scanType: scanType
+                        scanType: scanType,
+                        version: '1.0' // Add version for consistency
                     };
                     
+                    // Create a unique ID for this QR code
+                    const qrId = `${supplier.id}_${scanType}`;
                     const qrCodeDiv = document.createElement('div');
-                    qrCodeDiv.className = 'mb-2';
+                    qrCodeDiv.className = 'mb-2 qr-code-canvas';
+                    qrCodeDiv.id = qrId;
                     
+                    // Generate QR code with consistent settings
                     QRCode.toCanvas(qrCodeDiv, JSON.stringify(scanData), {
                         width: 120,
                         height: 120,
-                        margin: 1
+                        margin: 2,
+                        color: {
+                            dark: '#000000',
+                            light: '#FFFFFF'
+                        },
+                        errorCorrectionLevel: 'M'
                     }, function (error) {
-                        if (error) console.error('QR code generation error:', error);
+                        if (error) {
+                            console.error(`QR code generation error for ${qrId}:`, error);
+                        }
                     });
                     
+                    const points = CONFIG.pointValues[scanType];
                     const label = scanType.charAt(0).toUpperCase() + scanType.slice(1) + 
-                                 (scanType === 'checkin' ? ' (10 pts)' : 
-                                  scanType === 'good' ? ' (50 pts)' : ' (100 pts)');
+                                 ` (${points} ${points === 1 ? 'pt' : 'pts'})`;
                     
                     scanDiv.innerHTML = `
                         ${qrCodeDiv.outerHTML}
-                        <p class="text-sm font-medium">${label}</p>
+                        <p class="text-sm font-medium mt-2">${label}</p>
+                        <p class="text-xs text-gray-500 mt-1">ID: ${qrId}</p>
                     `;
                     
                     supplierDiv.appendChild(scanDiv);
@@ -854,9 +873,26 @@
             
             adminContent.appendChild(codesContainer);
             
+            // Add summary
+            const summaryDiv = document.createElement('div');
+            summaryDiv.className = 'mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200';
+            const totalCodes = CONFIG.suppliers.length * 3; // 3 codes per supplier
+            summaryDiv.innerHTML = `
+                <h4 class="font-semibold text-blue-800 mb-2">QR Code Summary</h4>
+                <p class="text-blue-700">
+                    <strong>${CONFIG.suppliers.length}</strong> suppliers × <strong>3</strong> scan types = <strong>${totalCodes}</strong> total QR codes
+                </p>
+                <div class="mt-2 text-sm text-blue-600">
+                    <p>• Check In: 1 point each</p>
+                    <p>• Chat: 2 points each</p>
+                    <p>• Bonus: 3 points each</p>
+                </div>
+            `;
+            adminContent.appendChild(summaryDiv);
+            
             // Add print button
             const printBtn = document.createElement('button');
-            printBtn.className = 'mt-6 w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors';
+            printBtn.className = 'mt-4 w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors';
             printBtn.textContent = '🖨️ Print QR Codes';
             printBtn.onclick = () => window.print();
             adminContent.appendChild(printBtn);

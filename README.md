@@ -22,9 +22,9 @@ A gamified web application designed to encourage meaningful interactions between
 
 ### For Suppliers
 - **Three interaction types** with different point values:
-  - Check-In: 10 points (basic hello)
-  - Good Quality Chat: 50 points (meaningful conversation)
-  - Excellent Chat: 100 points (in-depth discussion)
+  - Check-In: 1 point (basic hello)
+  - Chat: 2 points (meaningful conversation)
+  - Bonus: 3 points (in-depth discussion)
 
 ## 🏗️ Technical Architecture
 
@@ -83,9 +83,9 @@ const CONFIG = {
         // ... 24 suppliers total
     ],
     pointValues: {
-        checkin: 10,
-        good: 50,
-        excellent: 100
+        checkin: 1,
+        chat: 2,
+        bonus: 3
     },
     attendees: [
         { badgeUid: 'ATT001', name: 'Jane Doe' },
@@ -119,6 +119,7 @@ See [FIREBASE_SETUP.md](FIREBASE_SETUP.md) for comprehensive setup instructions.
 - **72 unique QR codes** total (24 suppliers × 3 types)
 - **Real-time leaderboard** updates
 - **Mobile-first experience** for easy scanning
+- **Consistent QR generation** - same codes every time
 
 ### Scalability
 - Firebase free tier supports up to 200 concurrent users
@@ -174,9 +175,9 @@ See [FIREBASE_SETUP.md](FIREBASE_SETUP.md) for comprehensive setup instructions.
 ## 🎮 Game Mechanics
 
 ### Scoring System
-- **Check-In**: 10 points - Basic booth visit
-- **Good Chat**: 50 points - Meaningful conversation
-- **Excellent Chat**: 100 points - In-depth discussion
+- **Check-In**: 1 point - Basic booth visit
+- **Chat**: 2 points - Meaningful conversation
+- **Bonus**: 3 points - In-depth discussion
 
 ### Engagement Strategy
 - **Gamification** encourages quality interactions

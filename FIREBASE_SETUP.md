@@ -118,9 +118,9 @@ Edit the `pointValues` object:
 
 ```javascript
 pointValues: {
-    checkin: 10,    // Points for basic check-in
-    good: 50,       // Points for good quality chat
-    excellent: 100  // Points for excellent chat
+    checkin: 1,     // Points for basic check-in
+    chat: 2,        // Points for meaningful conversation
+    bonus: 3        // Points for in-depth discussion
 }
 ```
 
