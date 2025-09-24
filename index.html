@@ -8,7 +8,19 @@
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+    <script src="https://unpkg.com/qrcode@1.5.3/build/qrcode.min.js"></script>
+    <script>
+        // Fallback QR code library loading
+        if (typeof QRCode === 'undefined') {
+            console.log('Primary QR code library failed, trying fallback...');
+            const script = document.createElement('script');
+            script.src = 'https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js';
+            script.onerror = function() {
+                console.error('All QR code libraries failed to load');
+            };
+            document.head.appendChild(script);
+        }
+    </script>
     <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     <style>
         .qr-scanner-container {
@@ -823,8 +835,18 @@
             
             // Check if QRCode library is available
             if (typeof QRCode === 'undefined') {
-                alert('QR Code library not loaded. Please refresh the page and try again.');
-                console.error('QRCode library not found');
+                console.log('QRCode library not found, waiting for fallback to load...');
+                // Wait a moment for fallback library to load
+                setTimeout(() => {
+                    if (typeof QRCode === 'undefined') {
+                        alert('QR Code library not loaded. Please refresh the page and try again.');
+                        console.error('QRCode library not found after timeout');
+                        return;
+                    } else {
+                        console.log('QRCode library loaded via fallback, retrying...');
+                        testQRCode(); // Retry the function
+                    }
+                }, 2000);
                 return;
             }
             
@@ -879,8 +901,18 @@
             
             // Check if QRCode library is available
             if (typeof QRCode === 'undefined') {
-                alert('QR Code library not loaded. Please refresh the page and try again.');
-                console.error('QRCode library not found');
+                console.log('QRCode library not found, waiting for fallback to load...');
+                // Wait a moment for fallback library to load
+                setTimeout(() => {
+                    if (typeof QRCode === 'undefined') {
+                        alert('QR Code library not loaded. Please refresh the page and try again.');
+                        console.error('QRCode library not found after timeout');
+                        return;
+                    } else {
+                        console.log('QRCode library loaded via fallback, retrying...');
+                        generateQRCodes(); // Retry the function
+                    }
+                }, 2000);
                 return;
             }
             
