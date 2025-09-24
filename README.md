@@ -14,6 +14,7 @@ A gamified web application designed to encourage meaningful interactions between
 - **Duplicate prevention** - can't scan the same QR code twice
 
 ### For Admins
+- **Password-protected access** to admin functions
 - **QR code generation** for all 24 suppliers and interaction types
 - **Live leaderboard monitoring** with admin view
 - **Data management** including reset functionality
@@ -64,10 +65,11 @@ A gamified web application designed to encourage meaningful interactions between
 5. **View progress** on personal dashboard and leaderboard
 
 ### Admin Workflow
-1. **Generate QR codes** for all suppliers and interaction types
-2. **Print and distribute** QR codes to suppliers
-3. **Monitor live leaderboard** during event
-4. **Manage data** as needed
+1. **Access admin panel** with password authentication
+2. **Generate QR codes** for all suppliers and interaction types
+3. **Print and distribute** QR codes to suppliers
+4. **Monitor live leaderboard** during event
+5. **Manage data** as needed
 
 ## 🎯 Configuration
 
@@ -75,6 +77,7 @@ The application is easily configurable for different events by modifying the `CO
 
 ```javascript
 const CONFIG = {
+    adminPassword: 'admin123', // Change this to your desired admin password
     suppliers: [
         { id: 'supplier_1', name: 'TechCorp Solutions' },
         // ... 24 suppliers total
@@ -184,6 +187,7 @@ See [FIREBASE_SETUP.md](FIREBASE_SETUP.md) for comprehensive setup instructions.
 ## 🔧 Customization
 
 ### Easy Modifications
+- **Admin password** - Change the admin access password
 - **Supplier list** - Add/remove suppliers
 - **Point values** - Adjust scoring system
 - **Attendee list** - Update participant roster

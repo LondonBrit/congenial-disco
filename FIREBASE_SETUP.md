@@ -134,6 +134,13 @@ attendees: [
 ]
 ```
 
+### Changing Admin Password
+Edit the `adminPassword` value:
+
+```javascript
+adminPassword: 'your-secure-password-here', // Change this to your desired admin password
+```
+
 ## Security Considerations
 
 ### For Production Use
@@ -144,6 +151,7 @@ attendees: [
 3. **Rate Limiting**: Consider implementing rate limiting to prevent spam scans.
 
 ### Current Security Features
+- Admin password protection for administrative functions
 - Duplicate scan prevention (same user can't scan the same QR code twice)
 - Badge UID validation against predefined list
 - Anonymous authentication for session management
@@ -175,6 +183,7 @@ attendees: [
 - [ ] QR scanner opens and works
 - [ ] Scans are recorded in Firestore
 - [ ] Leaderboard updates in real-time
+- [ ] Admin password protection works
 - [ ] Admin panel generates QR codes
 - [ ] Duplicate scans are prevented
 - [ ] Mobile interface works properly
